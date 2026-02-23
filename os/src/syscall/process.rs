@@ -1,5 +1,7 @@
 //! Process management syscalls
-use crate::{mm::{PageTable, VirtAddr, translated_byte_buffer}, task::{TASK_MANAGER, change_program_brk, current_user_token, exit_current_and_run_next, suspend_current_and_run_next}, timer::get_time_us};
+use core::panicking::panic;
+
+use crate::{mm::{PageTable, PhysAddr, VirtAddr, translated_byte_buffer}, task::{TASK_MANAGER, change_program_brk, current_user_token, exit_current_and_run_next, suspend_current_and_run_next}, timer::get_time_us};
 
 #[repr(C)]
 #[derive(Debug)]
@@ -62,19 +64,41 @@ pub fn sys_trace(trace_request: usize, id: usize, data: usize) -> isize {
     let pte = match page_table.translate(viraddr.floor()) {
         Some(pte) => pte,
         None => return -1,
-    }
+    };
 
     match trace_request{
         0 => {
-
-        }
+            if pte.is_user() && pte.readable() {
+                let physaddr: PhysAddr = pte.ppn().into();
+                let addr = physaddr.0 | viraddr.page_offset();
+                let raw_ptr = addr as *const u8;
+                unsafe {
+                    *raw_ptr as isize
+                }
+            }else {
+                -1
+            }
+        },
         1 => {
-
-        }
+            if pte.is_user() && pte.writable() {
+                let physaddr: PhysAddr = pte.ppn().into();
+                let addr = physaddr.0 | viraddr.page_offset();
+                let raw_ptr = addr as *mut u8;
+                unsafe {
+                    *raw_ptr = data as u8;
+                    0
+                }
+            }else {
+                -1
+            }
+        },
         2 => {
             TASK_MANAGER.get_task_trace(id)
-        }
-    };
+        },
+        _ => {
+            panic!("sys_trace: Invalid trace_request!");
+        },
+    }
 }
 
 // YOUR JOB: Implement mmap.
