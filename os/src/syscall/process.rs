@@ -1,5 +1,5 @@
 //! Process management syscalls
-use crate::{mm::translated_byte_buffer, task::{change_program_brk, current_user_token, exit_current_and_run_next, suspend_current_and_run_next}, timer::get_time_us};
+use crate::{mm::{PageTable, VirtAddr, translated_byte_buffer}, task::{TASK_MANAGER, change_program_brk, current_user_token, exit_current_and_run_next, suspend_current_and_run_next}, timer::get_time_us};
 
 #[repr(C)]
 #[derive(Debug)]
@@ -56,8 +56,25 @@ pub fn sys_get_time(ts: *mut TimeVal, tz: usize) -> isize {
 
 /// TODO: Finish sys_trace to pass testcases
 /// HINT: You might reimplement it with virtual memory management.
-pub fn sys_trace(_trace_request: usize, _id: usize, _data: usize) -> isize {
+pub fn sys_trace(trace_request: usize, id: usize, data: usize) -> isize {
+    let page_table = PageTable::from_token(current_user_token());
+    let viraddr = VirtAddr::from(id);
+    let pte = match page_table.translate(viraddr.floor()) {
+        Some(pte) => pte,
+        None => return -1,
+    }
 
+    match trace_request{
+        0 => {
+
+        }
+        1 => {
+
+        }
+        2 => {
+            TASK_MANAGER.get_task_trace(id)
+        }
+    };
 }
 
 // YOUR JOB: Implement mmap.
