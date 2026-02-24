@@ -1,6 +1,8 @@
 //! Process management syscalls
 
-use crate::{mm::{PageTable, PhysAddr, VirtAddr, translated_byte_buffer}, task::{TASK_MANAGER, change_program_brk, current_user_token, exit_current_and_run_next, suspend_current_and_run_next}, timer::get_time_us};
+use crate::{config::PAGE_SIZE, mm::{PageTable, PhysAddr, VirtAddr, translated_byte_buffer}, 
+            task::{TASK_MANAGER, change_program_brk, current_user_token, exit_current_and_run_next, suspend_current_and_run_next, push_maparea, unmap_area}, 
+            timer::get_time_us};
 
 #[repr(C)]
 #[derive(Debug)]
@@ -101,15 +103,23 @@ pub fn sys_trace(trace_request: usize, id: usize, data: usize) -> isize {
 }
 
 // YOUR JOB: Implement mmap.
-pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
-    trace!("kernel: sys_mmap NOT IMPLEMENTED YET!");
-    -1
+pub fn sys_mmap(start: usize, len: usize, prot: usize) -> isize {
+    trace!("kernel: sys_mmap");
+    if prot & !0x7 != 0 || prot & 0x7 == 0 {return -1;}
+    if !VirtAddr::from(start).aligned() {return -1;}
+
+    let len = (len + PAGE_SIZE - 1) & !(PAGE_SIZE - 1);
+    if !push_maparea(start, start + len, prot << 1) {return -1};
+    0
 }
 
 // YOUR JOB: Implement munmap.
-pub fn sys_munmap(_start: usize, _len: usize) -> isize {
-    trace!("kernel: sys_munmap NOT IMPLEMENTED YET!");
-    -1
+pub fn sys_munmap(start: usize, len: usize) -> isize {
+    trace!("kernel: sys_munmap");
+    if !VirtAddr::from(start).aligned() {return -1;}
+    let len = (len + PAGE_SIZE - 1) & !(PAGE_SIZE - 1);
+    if !unmap_area(start, start + len) {return -1;}
+    0
 }
 /// change data segment size
 pub fn sys_sbrk(size: i32) -> isize {

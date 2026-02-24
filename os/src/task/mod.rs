@@ -15,6 +15,7 @@ mod switch;
 mod task;
 
 use crate::loader::{get_app_data, get_num_app};
+use crate::mm::{MapPermission, VirtAddr, VirtPageNum};
 use crate::sync::UPSafeCell;
 use crate::trap::TrapContext;
 use alloc::vec::Vec;
@@ -167,6 +168,29 @@ impl TaskManager {
         let current = inner.current_task;
         inner.tasks[current].task_trace[id] as isize
     }
+
+    /// add a new Map_Area
+    pub fn push_maparea(&self, start_va: usize, end_va: usize, prot: usize) -> bool {
+        let mut inner = self.inner.exclusive_access();
+        let start_vpn = VirtPageNum::from(VirtAddr::from(start_va));
+        let end_vpn = VirtPageNum::from(VirtAddr::from(end_va));
+        let current = inner.current_task;
+        let memory_set = &mut inner.tasks[current].memory_set;
+        if !memory_set.check_range(start_vpn, end_vpn) {return false;}
+        memory_set.insert_framed_area(start_va.into(), end_va.into(), MapPermission::U | MapPermission::from_bits_truncate(prot as u8));
+        true
+    }
+    /// unmap an area
+    pub fn unmap_area(&self, start_va: usize, end_va: usize) -> bool {
+        let mut inner = self.inner.exclusive_access();
+        let start_vpn = VirtPageNum::from(VirtAddr::from(start_va));
+        let end_vpn = VirtPageNum::from(VirtAddr::from(end_va));
+        let current = inner.current_task;
+        let memory_set = &mut inner.tasks[current].memory_set;
+        if !memory_set.check_area(start_vpn, end_vpn) {return false;}
+        memory_set.unmap_area(start_vpn);        
+        true
+    }
 }
 
 /// Run the first task in task list.
@@ -215,4 +239,14 @@ pub fn current_trap_cx() -> &'static mut TrapContext {
 /// Change the current 'Running' task's program break
 pub fn change_program_brk(size: i32) -> Option<usize> {
     TASK_MANAGER.change_current_program_brk(size)
+}
+
+/// add a new Map_area
+pub fn push_maparea(start_va: usize, end_va: usize, prot: usize) -> bool {
+    TASK_MANAGER.push_maparea(start_va, end_va, prot)
+}
+
+/// unmap an area
+pub fn unmap_area(start_va: usize, end_va: usize) -> bool {
+    TASK_MANAGER.unmap_area(start_va, end_va)
 }
