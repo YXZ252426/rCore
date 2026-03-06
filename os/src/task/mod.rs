@@ -23,7 +23,6 @@ mod task;
 
 use crate::loader::get_app_data_by_name;
 use alloc::sync::Arc;
-use crate::mm::{MapPermission, VirtAddr, VirtPageNum};
 use lazy_static::*;
 pub use manager::{fetch_task, TaskManager};
 use switch::__switch;
@@ -34,7 +33,7 @@ pub use id::{kstack_alloc, pid_alloc, KernelStack, PidHandle};
 pub use manager::add_task;
 pub use processor::{
     current_task, current_trap_cx, current_user_token, run_tasks, schedule, take_current_task,
-    Processor,
+    Processor, push_maparea, unmap_area
 };
 /// Suspend the current 'Running' task and run the next task in task list.
 pub fn suspend_current_and_run_next() {
@@ -113,39 +112,7 @@ lazy_static! {
 
 }
 
-/// add a new Map_Area
-pub fn push_maparea(&self, start_va: usize, end_va: usize, prot: usize) -> bool {
-    let mut inner = self.inner.exclusive_access();
-    let start_vpn = VirtPageNum::from(VirtAddr::from(start_va));
-    let end_vpn = VirtPageNum::from(VirtAddr::from(end_va));
-    let current = inner.current_task;
-    let memory_set = &mut inner.tasks[current].memory_set;
-    if !memory_set.check_range(start_vpn, end_vpn) {return false;}
-    memory_set.insert_framed_area(start_va.into(), end_va.into(), MapPermission::U | MapPermission::from_bits_truncate(prot as u8));
-    true
-}
-/// unmap an area
-pub fn unmap_area(&self, start_va: usize, end_va: usize) -> bool {
-    let mut inner = self.inner.exclusive_access();
-    let start_vpn = VirtPageNum::from(VirtAddr::from(start_va));
-    let end_vpn = VirtPageNum::from(VirtAddr::from(end_va));
-    let current = inner.current_task;
-    let memory_set = &mut inner.tasks[current].memory_set;
-    if !memory_set.check_area(start_vpn, end_vpn) {return false;}
-    memory_set.unmap_area(start_vpn);        
-    true
-}
 ///Add init process to the manager
 pub fn add_initproc() {
     add_task(INITPROC.clone());
-}
-
-/// add a new Map_area
-pub fn push_maparea(start_va: usize, end_va: usize, prot: usize) -> bool {
-    TASK_MANAGER.push_maparea(start_va, end_va, prot)
-}
-
-/// unmap an area
-pub fn unmap_area(start_va: usize, end_va: usize) -> bool {
-    TASK_MANAGER.unmap_area(start_va, end_va)
 }
