@@ -300,6 +300,48 @@ impl MemorySet {
             false
         }
     }
+
+    /// check the push vaddr range
+    #[allow(unused)]
+    pub fn check_range(&self, start_vpn: VirtPageNum, end_vpn: VirtPageNum) -> bool {
+        for area in &self.areas {
+            let existing_start_vpn = area.vpn_range.get_start();
+            let existing_end_vpn = area.vpn_range.get_end();
+
+            if start_vpn < existing_end_vpn && existing_start_vpn < end_vpn {
+                return false;
+            }
+        }
+    true
+    }
+
+    /// check the push vaddr range
+    pub fn check_area(&self, start_vpn:VirtPageNum, end_vpn: VirtPageNum) -> bool {
+        for area in &self.areas {
+            let existing_start_vpn = area.vpn_range.get_start();
+            let existing_end_vpn = area.vpn_range.get_end();
+
+            if start_vpn == existing_end_vpn && existing_start_vpn == end_vpn {
+                return true;
+            }            
+        }
+        false
+    }
+
+    /// unmap an area
+    pub fn unmap_area(&mut self, start_vpn: VirtPageNum) {
+        if let Some(index) = self.areas
+            .iter()
+            .position(|area| area.vpn_range.get_start() == start_vpn)
+        {
+            let area = &mut self.areas[index];
+            area.unmap(&mut self.page_table);
+
+            self.areas.remove(index);
+        } else {
+            panic!("Attempted to unmap non-existent area starting at VPN {:?}", start_vpn);
+        }
+    } 
 }
 /// map area structure, controls a contiguous piece of virtual memory
 pub struct MapArea {

@@ -31,6 +31,9 @@
 $ git clone https://github.com/LearningOS/rCore-Tutorial-Code-2025S.git
 $ cd rCore-Tutorial-Code-2025S
 $ git clone https://github.com/LearningOS/rCore-Tutorial-Test-2025S.git user
+$ git clone https://github.com/LearningOS/rCore-Tutorial-Code-2025S.git
+$ cd rCore-Tutorial-Code-2025S
+$ git clone https://github.com/LearningOS/rCore-Tutorial-Test-2025S.git user
 $ cd os
 $ git checkout ch$ID
 # run OS in ch$ID
@@ -42,6 +45,10 @@ Notice: $ID is from [1-9]
 
 ```bash
 # setup build&run environment first
+$ git clone https://github.com/LearningOS/rCore-Tutorial-Code-2025S.git
+$ cd rCore-Tutorial-Code-2025S
+$ git clone https://github.com/LearningOS/rCore-Tutorial-Checker-2025S.git ci-user
+$ git clone https://github.com/LearningOS/rCore-Tutorial-Test-2025S.git ci-user/user
 $ git clone https://github.com/LearningOS/rCore-Tutorial-Code-2025S.git
 $ cd rCore-Tutorial-Code-2025S
 $ git clone https://github.com/LearningOS/rCore-Tutorial-Checker-2025S.git ci-user
