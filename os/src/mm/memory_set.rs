@@ -321,7 +321,7 @@ impl MemorySet {
             let existing_start_vpn = area.vpn_range.get_start();
             let existing_end_vpn = area.vpn_range.get_end();
 
-            if start_vpn == existing_end_vpn && existing_start_vpn == end_vpn {
+            if start_vpn == existing_start_vpn && existing_end_vpn == end_vpn {
                 return true;
             }            
         }
