@@ -28,11 +28,11 @@ pub fn sys_yield() -> isize {
 /// YOUR JOB: get time with second and microsecond
 /// HINT: You might reimplement it with virtual memory management.
 /// HINT: What if [`TimeVal`] is splitted by two pages ?
-pub fn sys_get_time(ts: *mut TimeVal, tz: usize) -> isize {
+pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
     let token = current_user_token();
     let size = core::mem::size_of::<TimeVal>();
 
-    let mut buffers = translated_byte_buffer(token, ts as *const u8, tz);
+    let mut buffers = translated_byte_buffer(token, ts as *const u8, size);
     let us = get_time_us();
     let time_val = TimeVal {
         sec: us / 1_000_000,
