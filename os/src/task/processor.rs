@@ -92,6 +92,16 @@ pub fn current_user_token() -> usize {
     task.get_user_token()
 }
 
+/// add a new Map_Area
+pub fn push_maparea(start_va: usize, end_va: usize, prot: usize) -> bool {
+    current_task().unwrap().push_maparea(start_va, end_va, prot)
+}
+
+/// unmap an area 
+pub fn unmap_area(start_va: usize, end_va: usize) -> bool {
+    current_task().unwrap().unmap_area(start_va, end_va)
+}
+
 ///Get the mutable reference to trap context of current task
 pub fn current_trap_cx() -> &'static mut TrapContext {
     current_task()

@@ -26,6 +26,7 @@ OBJDUMP := rust-objdump --arch-name=riscv64
 OBJCOPY := rust-objcopy --binary-architecture=riscv64
 
 CHAPTER ?= $(shell git rev-parse --abbrev-ref HEAD | sed -E 's/ch([0-9])/\1/')
+CHAPTER ?= $(shell git rev-parse --abbrev-ref HEAD | sed -E 's/ch([0-9])/\1/')
 TEST ?= $(CHAPTER)
 BASE ?= 1
 
@@ -39,10 +40,12 @@ build: env $(KERNEL_BIN) fs-img
 
 env:
 ifeq ($(OFFLINE),)
+ifeq ($(OFFLINE),)
 	(rustup target list | grep "riscv64gc-unknown-none-elf (installed)") || rustup target add $(TARGET)
 	cargo install cargo-binutils
 	rustup component add rust-src
 	rustup component add llvm-tools-preview
+endif
 endif
 
 $(KERNEL_BIN): kernel
@@ -56,6 +59,7 @@ fs-img: $(APPS)
 kernel:
 	@make -C ../user build TEST=$(TEST) CHAPTER=$(CHAPTER) BASE=$(BASE)
 	@echo Platform: $(BOARD)
+	@cargo build $(MODE_ARG)
 	@cargo build $(MODE_ARG)
 
 clean:
