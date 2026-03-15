@@ -37,6 +37,13 @@ The hard part is this line, not the loop itself:
       copy the needed bytes from that block into buf
       advance to next piece
 
+use &T when you only need temporary access
+use Arc<T> when you need the value to outlive the current borrow/call
+use &Arc<T> when you mostly want temporary access, but may sometimes create a new owner with Arc::clone
+```
+b  --->  a  --->  [ refcount | Foo ]
+        Arc
+```
 ## thr annoying reference
 What you have there is not really a “double Arc ref”. It is a borrow of the Option stored in the vector.
 
