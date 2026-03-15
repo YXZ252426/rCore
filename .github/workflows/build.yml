@@ -5,6 +5,7 @@ on: [push]
 env:
   CARGO_TERM_COLOR: always
   rust_toolchain: nightly
+  rust_toolchain: nightly
 
 jobs:
   basic-test:
@@ -15,10 +16,14 @@ jobs:
       image: duskmoon/dev-env:rcore-ci
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
       - name: Run tests
         run: |
           qemu-system-riscv64 --version
           rustup target add riscv64gc-unknown-none-elf
+          git config --global --add safe.directory /__w/${{ github.event.repository.name }}/${{ github.event.repository.name }}
+          git clone https://github.com/LearningOS/rCore-Tutorial-Checker-2025S.git ci-user
+          git clone https://github.com/LearningOS/rCore-Tutorial-Test-2025S.git ci-user/user
           git config --global --add safe.directory /__w/${{ github.event.repository.name }}/${{ github.event.repository.name }}
           git clone https://github.com/LearningOS/rCore-Tutorial-Checker-2025S.git ci-user
           git clone https://github.com/LearningOS/rCore-Tutorial-Test-2025S.git ci-user/user
@@ -33,12 +38,15 @@ jobs:
           cat output.txt | grep "Test passed" | grep -oP "\d{1,}/\d{1,}" | xargs -i echo "points={}" >> $GITHUB_OUTPUT
   gitlab-mirror:
     if: github.repository == 'LearningOS/rCore-Tutorial-Code-2025S'
+    if: github.repository == 'LearningOS/rCore-Tutorial-Code-2025S'
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v1
     - name: Mirror + trigger CI
       uses: tkf2019/gitlab-mirror-and-ci-action@master
+      uses: tkf2019/gitlab-mirror-and-ci-action@master
       with:
+        args: "https://git.tsinghua.edu.cn/os-lab/2025S/public/rcore-tutorial-code-2025S"
         args: "https://git.tsinghua.edu.cn/os-lab/2025S/public/rcore-tutorial-code-2025S"
       env:
         GITLAB_HOSTNAME: "git.tsinghua.edu.cn"
@@ -46,7 +54,12 @@ jobs:
         GITLAB_PROJECT_NAME: "rcore-tutorial-code-2025S"
         GITLAB_PROJECT_TOKEN: ${{secrets.GITLAB_PROJECT_TOKEN}}
         GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+        GITLAB_PROJECT_ID: "37679"
+        GITLAB_PROJECT_NAME: "rcore-tutorial-code-2025S"
+        GITLAB_PROJECT_TOKEN: ${{secrets.GITLAB_PROJECT_TOKEN}}
+        GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
   deploy:
+    if: github.repository != 'LearningOS/rCore-Tutorial-Code-2025S'
     if: github.repository != 'LearningOS/rCore-Tutorial-Code-2025S'
     name: Deploy to pages
     needs: basic-test
@@ -70,3 +83,4 @@ jobs:
           keep_history: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+

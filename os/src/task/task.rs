@@ -1,13 +1,11 @@
 //! Types related to task management & Functions for completely changing TCB
-
-use super::{kstack_alloc, pid_alloc, KernelStack, PidHandle, SignalActions, SignalFlags, TaskContext};
-use crate::{
-    config::TRAP_CONTEXT_BASE,
-    fs::{File, Stdin, Stdout},
-    mm::{translated_refmut, MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE},
-    sync::UPSafeCell,
-    trap::{trap_handler, TrapContext},
-};
+use super::TaskContext;
+use super::{kstack_alloc, pid_alloc, KernelStack, PidHandle, SignalActions, SignalFlags};
+use crate::config::{BIG_STRIDE, TRAP_CONTEXT_BASE};
+use crate::fs::{File, Stdin, Stdout};
+use crate::mm::{translated_refmut, MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE, VirtPageNum, MapPermission};
+use crate::sync::UPSafeCell;
+use crate::trap::{trap_handler, TrapContext};
 use alloc::{
     string::String,
     sync::{Arc, Weak},
@@ -15,6 +13,7 @@ use alloc::{
     vec::Vec,
 };
 use core::cell::RefMut;
+use core::cmp::Ordering;
 
 /// Task control block structure
 ///
@@ -43,6 +42,26 @@ impl TaskControlBlock {
     }
 }
 
+impl PartialEq for TaskControlBlock {
+    fn eq(&self, other: &Self) -> bool {
+        self.inner_exclusive_access().stride == other.inner_exclusive_access().stride
+    }
+}
+
+impl Eq for TaskControlBlock {}
+
+impl PartialOrd for TaskControlBlock {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for TaskControlBlock {
+    fn cmp(&self, other: &Self) -> Ordering {
+        // 直接比较stride
+        other.inner_exclusive_access().stride.cmp(&self.inner_exclusive_access().stride)
+    }
+}
 pub struct TaskControlBlockInner {
     /// The physical page number of the frame where the trap context is placed
     pub trap_cx_ppn: PhysPageNum,
@@ -87,6 +106,12 @@ pub struct TaskControlBlockInner {
 
     /// Program break
     pub program_brk: usize,
+
+    /// stride
+    pub stride: usize,
+
+    /// priority
+    pub priority: usize,
 }
 
 impl TaskControlBlockInner {
@@ -109,6 +134,14 @@ impl TaskControlBlockInner {
             self.fd_table.push(None);
             self.fd_table.len() - 1
         }
+    }
+    /// add stride
+    pub fn add_stride(&mut self) {
+        self.stride += BIG_STRIDE / self.priority;
+    }
+    /// set priority
+    pub fn set_priority(&mut self, prio: usize) {
+        self.priority = prio;
     }
 }
 
@@ -158,6 +191,8 @@ impl TaskControlBlock {
                     trap_ctx_backup: None,
                     heap_bottom: user_sp,
                     program_brk: user_sp,
+                    stride: 0,
+                    priority: 16,
                 })
             },
         };
@@ -273,6 +308,8 @@ impl TaskControlBlock {
                     trap_ctx_backup: None,
                     heap_bottom: parent_inner.heap_bottom,
                     program_brk: parent_inner.program_brk,
+                    stride: 0,
+                    priority: 16,
                 })
             },
         });
@@ -317,6 +354,28 @@ impl TaskControlBlock {
         } else {
             None
         }
+    }
+
+    /// add a new Map_Area
+    pub fn push_maparea(&self, start_va: usize, end_va: usize, prot: usize) -> bool {
+        let mut inner = self.inner.exclusive_access();
+        let start_vpn = VirtPageNum::from(VirtAddr::from(start_va));
+        let end_vpn = VirtPageNum::from(VirtAddr::from(end_va));
+        let memory_set = &mut inner.memory_set;
+        if !memory_set.check_range(start_vpn, end_vpn) { return false; }
+        memory_set.insert_framed_area(start_va.into(), end_va.into(), MapPermission::U | MapPermission::from_bits_truncate(prot as u8));
+        true
+    }
+
+    /// unmap an area 
+    pub fn unmap_area(&self, start_va: usize, end_va: usize) -> bool {
+        let mut inner = self.inner.exclusive_access();
+        let start_vpn = VirtPageNum::from(VirtAddr::from(start_va));
+        let end_vpn = VirtPageNum::from(VirtAddr::from(end_va));
+        let memory_set = &mut inner.memory_set;
+        if !memory_set.check_area(start_vpn, end_vpn) { return false; }
+        memory_set.unmap_area(start_vpn);
+        true
     }
 }
 
