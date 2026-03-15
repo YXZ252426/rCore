@@ -85,6 +85,7 @@ pub struct DiskInode {
     pub direct: [u32; INODE_DIRECT_COUNT],
     pub indirect1: u32,
     pub indirect2: u32,
+    pub nlink: u32,
     type_: DiskInodeType,
 }
 
@@ -97,6 +98,7 @@ impl DiskInode {
         self.direct.iter_mut().for_each(|v| *v = 0);
         self.indirect1 = 0;
         self.indirect2 = 0;
+        self.nlink = 1;
         self.type_ = type_;
     }
     /// Whether this inode is a directory
@@ -387,6 +389,22 @@ impl DiskInode {
             start = end_current_block;
         }
         write_size
+    }
+
+    /// Increase nlink
+    pub fn increase_nlink(&mut self) {
+        self.nlink += 1;
+    }
+
+    /// Decrease nlink
+    pub fn decrease_nlink(&mut self) -> u32 {
+        self.nlink -= 1;
+        self.nlink
+    }
+
+    /// get nlink
+    pub fn get_nlink(&self) -> u32 {
+        self.nlink
     }
 }
 /// A directory entry

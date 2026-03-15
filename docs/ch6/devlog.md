@@ -147,3 +147,10 @@ cached data to disk.
 It is also helpful to compare this with Linux concepts. EasyFileSystem::create is closer to formatting a filesystem image, while open is closer to opening an existing filesystem.
 
 The disk itself is just a linear array of blocks. The filesystem gives those blocks meaning by organizing them with the superblock, bitmaps, inode area, and data area.
+
+## 3.14
+after read the makefile
+
+i need to learn more about the whole process of make run, because it contains how to create the fs.img using easy-fs-fuse and hwo Qemu will use this fs.img
+
+what confused me is that it contains some computer system knowledge, so CSAPP let's go!!

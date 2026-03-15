@@ -36,3 +36,61 @@ The hard part is this line, not the loop itself:
       load disk block from cache
       copy the needed bytes from that block into buf
       advance to next piece
+
+## thr annoying reference
+What you have there is not really a “double Arc ref”. It is a borrow of the Option stored in the vector.
+
+  fd_table element type is:
+
+  Option<Arc<dyn File + Send + Sync + 'static>>
+
+  Inside this code:
+```rust
+  if let Some(file) = &inner.fd_table[fd] {
+      0
+  } else {
+      -1
+  }
+```
+  the types are effectively:
+
+  - `inner.fd_table[fd]`: the `Option<Arc<...>>` element at that slot
+  - `&inner.fd_table[fd]`: `&Option<Arc<...>>`
+  - file: `&Arc<dyn File + ...>`
+
+  So file is a reference to the Arc, not an owned Arc.
+
+  Why borrow it?
+  Because the Arc lives inside the vector. If you wrote:
+
+  `if let Some(file) = inner.fd_table[fd] { ... }`
+
+  that would try to move the Arc out of the vector slot, which Rust does not allow through indexing on a borrowed structure.
+
+  Why does Some(file) still work on &Option<_>?
+  Because of Rust match ergonomics: matching a reference to an enum lets the bound variable become a reference to the inner value.
+
+  Equivalent, more explicit form:
+```rust
+  if let Some(file) = inner.fd_table[fd].as_ref() {
+      0
+  } else {
+      -1
+  }
+```
+  Here as_ref() turns:
+
+  `Option<Arc<_>>`
+
+  into:
+
+ `Option<&Arc<_>>`
+
+  which is often easier to read.
+
+  Why can file.fstat() still work?
+  Because method call autoderef handles:
+
+  &Arc<T> -> Arc<T> -> T
+
+  so Rust can still find the trait method on the underlying File.

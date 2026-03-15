@@ -5,7 +5,6 @@ use alloc::sync::Arc;
 use crate::{
     config::PAGE_SIZE,
     fs::{open_file, OpenFlags},
-    loader::get_app_data_by_name,
     mm::{translated_byte_buffer, translated_refmut, translated_str, VirtAddr},
     task::{
         add_task, current_task, current_user_token, exit_current_and_run_next,
@@ -181,9 +180,10 @@ pub fn sys_spawn(path: *const u8) -> isize {
     );
     let token = current_user_token();
     let path = translated_str(token, path);
-    if let Some(data) = get_app_data_by_name(path.as_str()) {
+    if let Some(app_inode) = open_file(path.as_str(), OpenFlags::RDONLY) {
+        let all_data = app_inode.read_all();
         let current_task = current_task().unwrap();
-        let new_task = current_task.spawn(data);
+        let new_task = current_task.spawn(all_data.as_slice());
         let new_pid = new_task.pid.0;
         let trap_cx = new_task.inner_exclusive_access().get_trap_cx();
         trap_cx.x[10] = 0;

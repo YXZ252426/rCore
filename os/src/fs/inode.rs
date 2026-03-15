@@ -4,7 +4,7 @@
 //!
 //! `UPSafeCell<OSInodeInner>` -> `OSInode`: for static `ROOT_INODE`,we
 //! need to wrap `OSInodeInner` into `UPSafeCell`
-use super::File;
+use super::{File, Stat, StatMode};
 use crate::drivers::BLOCK_DEVICE;
 use crate::mm::UserBuffer;
 use crate::sync::UPSafeCell;
@@ -124,7 +124,36 @@ pub fn open_file(name: &str, flags: OpenFlags) -> Option<Arc<OSInode>> {
         })
     }
 }
+/// linked at a file
+pub fn linkedat_file(old_name: &str, new_name: &str) -> Option<Arc<OSInode>> {
+    if old_name == new_name {
+        return None;
+    }
 
+    if let Some(old_inode) = open_file(old_name, OpenFlags::RDONLY) {
+        let old_inner = old_inode.inner.exclusive_access();
+        old_inner.inode.increase_nlink();
+        let id = old_inner.inode.get_inode_id();
+        ROOT_INODE.linkat(id, new_name);
+        Some(Arc::new(OSInode::new(old_inode.readable, old_inode.writable, Arc::clone(&old_inner.inode))))
+    } else {
+        None
+    }  
+}
+
+/// unlink a file
+pub fn unlinkat_file(name: &str) -> Result<(), ()> {
+    if let Some(inode) = ROOT_INODE.find(name) {
+        let n = inode.decrease_nlink();
+        if n == 0 {
+            inode.clear();
+            ROOT_INODE.remove_entry(name);
+        }
+        Ok(())
+    } else {
+        Err(())
+    }
+} 
 impl File for OSInode {
     fn readable(&self) -> bool {
         self.readable
@@ -136,7 +165,7 @@ impl File for OSInode {
         let mut inner = self.inner.exclusive_access();
         let mut total_read_size = 0usize;
         for slice in buf.buffers.iter_mut() {
-            let read_size = inner.inode.read_at(inner.offset, *slice);
+            let read_size = inner.inode.read_at(inner.offset, slice);
             if read_size == 0 {
                 break;
             }
@@ -149,11 +178,28 @@ impl File for OSInode {
         let mut inner = self.inner.exclusive_access();
         let mut total_write_size = 0usize;
         for slice in buf.buffers.iter() {
-            let write_size = inner.inode.write_at(inner.offset, *slice);
+            let write_size = inner.inode.write_at(inner.offset, slice);
             assert_eq!(write_size, slice.len());
             inner.offset += write_size;
             total_write_size += write_size;
         }
         total_write_size
+    }
+    fn fstat(&self) -> Stat {
+        let inner = self.inner.exclusive_access();
+        let inode_id = inner.inode.get_inode_id();
+        let file_type = if inner.inode.is_dir() {
+            StatMode::DIR
+        } else {
+            StatMode::FILE
+        };
+        let link_num = inner.inode.get_nlink();
+        Stat { 
+            dev: 0, 
+            ino: inode_id as u64, 
+            mode: file_type, 
+            nlink: link_num, 
+            pad: [0;7], 
+        }
     }
 }
