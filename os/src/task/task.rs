@@ -2,9 +2,13 @@
 
 use super::id::TaskUserRes;
 use super::{kstack_alloc, KernelStack, ProcessControlBlock, TaskContext};
+use crate::task::current_task;
 use crate::trap::TrapContext;
 use crate::{mm::PhysPageNum, sync::UPSafeCell};
+use alloc::collections::BTreeMap;
 use alloc::sync::{Arc, Weak};
+use alloc::vec;
+use alloc::vec::Vec;
 use core::cell::RefMut;
 
 /// Task control block structure
@@ -41,6 +45,15 @@ pub struct TaskControlBlockInner {
     pub task_status: TaskStatus,
     /// It is set when active exit or execution error occurs
     pub exit_code: Option<i32>,
+
+    // mutex allocation
+    pub mutex_hold: BTreeMap<usize, bool>,
+
+    /// semaphore allocation
+    pub semaphore_hold: BTreeMap<usize, usize>,
+
+    /// need
+    pub need: Vec<isize>,
 }
 
 impl TaskControlBlockInner {
@@ -52,8 +65,53 @@ impl TaskControlBlockInner {
     fn get_status(&self) -> TaskStatus {
         self.task_status
     }
+
+    #[allow(unused)]
+    pub fn need2hold(&mut self, is_mutex: bool) {
+        match is_mutex {
+            true => {
+                self.mutex_hold.insert(self.need[1] as usize, true);
+                self.need[1] = -1;
+            }
+            false => {
+                self.semaphore_hold
+                    .entry(self.need[0] as usize)
+                    .and_modify(|v| *v +=1 )
+                    .or_insert(1);
+                self.need[0] = -1;
+            }
+        }
+    }
+
+    #[allow(unused)]
+    pub fn unhold(&mut self, id: usize, is_mutex: bool) {
+        match is_mutex {
+            true => {
+                self.mutex_hold.insert(id, false);
+            }
+            false => {
+                self.semaphore_hold
+                    .entry( id)
+                    .and_modify(|v| *v -=1 )
+                    .or_insert(0);
+            }
+        }
+    }
 }
 
+/// set need
+pub fn set_need(id: usize, is_mutex: bool) {
+    let task = current_task().unwrap();
+    let mut inner = task.inner_exclusive_access();
+    inner.need[is_mutex as usize] = id as isize;
+}
+
+/// unhold
+pub fn unhold(id: usize, is_mutex: bool) {
+    let task = current_task().unwrap();
+    let mut inner = task.inner_exclusive_access();
+    inner.unhold(id, is_mutex);
+}
 impl TaskControlBlock {
     /// Create a new task
     pub fn new(
@@ -75,6 +133,9 @@ impl TaskControlBlock {
                     task_cx: TaskContext::goto_trap_return(kstack_top),
                     task_status: TaskStatus::Ready,
                     exit_code: None,
+                    mutex_hold: BTreeMap::new(),
+                    semaphore_hold: BTreeMap::new(),
+                    need: vec![-1; 2],
                 })
             },
         }

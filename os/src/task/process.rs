@@ -49,6 +49,8 @@ pub struct ProcessControlBlockInner {
     pub semaphore_list: Vec<Option<Arc<Semaphore>>>,
     /// condvar list
     pub condvar_list: Vec<Option<Arc<Condvar>>>,
+    /// enable deadlock detect?
+    pub en_deadlock_det: bool,
 }
 
 impl ProcessControlBlockInner {
@@ -81,6 +83,87 @@ impl ProcessControlBlockInner {
     /// get a task with tid in this process
     pub fn get_task(&self, tid: usize) -> Arc<TaskControlBlock> {
         self.tasks[tid].as_ref().unwrap().clone()
+    }
+    /// deadlock detect
+    pub fn deadlock_detect(&self, is_mutex: usize) -> bool {
+        let len = match is_mutex {
+            1 => self.mutex_list.len(),
+            0 => self.semaphore_list.len(),
+            _ => panic!("deadlock_detect error"),
+        };
+
+        let mut allocation: Vec<Vec<usize>> = vec![vec![0; len]; self.tasks.len()];
+        let mut need: Vec<Vec<usize>> = vec![vec![0; len]; self.tasks.len()];
+        let mut work: Vec<usize> = vec![0; len];
+
+        match is_mutex {
+            1 => {
+                for (tid, tcb) in self.tasks.iter().enumerate() {
+                    if let Some(task) = tcb {
+                        let inner = task.inner_exclusive_access();
+                        for (&mid, &held) in &inner.mutex_hold {
+                            allocation[tid][mid] += held as usize;
+                        }
+                        if inner.need[1] >= 0 {
+                            need[tid][inner.need[1] as usize] += 1;
+                        }
+                    }
+                }
+                for (i, option) in self.mutex_list.iter().enumerate() {
+                    if let Some(mutex) = option {
+                        if !mutex.is_locked() {
+                            work[i] += 1;
+                        }
+                    }
+                }
+            }
+            0 => {
+                for (tid, tcb) in self.tasks.iter().enumerate() {
+                    if let Some(task) = tcb {
+                        let inner = task.inner_exclusive_access();
+                        for (&sid, &held) in &inner.semaphore_hold {
+                            allocation[tid][sid] += held;
+                        }
+                        if inner.need[0] >= 0 {
+                            need[tid][inner.need[0] as usize] += 1;
+                        }
+                    }
+                }
+                for (i, option) in self.semaphore_list.iter().enumerate() {
+                    if let Some(semaphore) = option {
+                        let count = semaphore.inner.exclusive_access().count;
+                        if count > 0 {
+                            work[i] += count as usize;
+                        }
+                    }
+                }
+            }
+            _ => panic!("deadlock_detect error"),
+        }
+        let mut finish = vec![false; self.tasks.len()];
+        loop {
+            let task = finish.iter().enumerate().find(|(tid, finished)| {
+                if **finished {
+                    false
+                } else {
+                    for j in 0..len {
+                        if need[*tid][j] > work[j] {
+                            return false;
+                        }
+                    }
+                    true
+                }
+            });
+            if let Some((tid, _)) = task {
+                for j in 0..len {
+                    work[j] += allocation[tid][j];
+                }
+                finish[tid] = true;
+            } else {
+                break;
+            }
+        }
+        finish.contains(&false)
     }
 }
 
@@ -119,6 +202,7 @@ impl ProcessControlBlock {
                     mutex_list: Vec::new(),
                     semaphore_list: Vec::new(),
                     condvar_list: Vec::new(),
+                    en_deadlock_det: false,
                 })
             },
         });
@@ -245,6 +329,7 @@ impl ProcessControlBlock {
                     mutex_list: Vec::new(),
                     semaphore_list: Vec::new(),
                     condvar_list: Vec::new(),
+                    en_deadlock_det: false,
                 })
             },
         });
